@@ -11,9 +11,18 @@ $app = new \Slim\App;
 
 // User Registration
 $app->post('/user/register', function (Request $request, Response $response, array $args) {
-    $data = json_decode($request->getBody());
-    $usr = $data->username;
-    $pass = $data->password;
+    $data = json_decode($request->getBody(), true);
+    $usr = $data['username'] ?? null;
+    $pass = $data['password'] ?? null;
+    $role_id = $data['role_id'] ?? 2; // Default to 'User' role (2) if not provided
+
+    if (!$usr || !$pass) {
+        $response->getBody()->write(json_encode([
+            'status' => 'fail',
+            'data' => ['title' => 'Invalid input']
+        ]));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+    }
 
     // Get database connection
     $database = new Database();
@@ -27,31 +36,27 @@ $app->post('/user/register', function (Request $request, Response $response, arr
         $data = $stmt->fetchAll();
 
         if (count($data) > 0) {
-            // If user exists, return an error message
             $response->getBody()->write(json_encode([
                 "status" => "fail",
                 "data" => ["title" => "Username already exists"]
             ]));
         } else {
-            // If user does not exist, insert new user
+            // Insert new user with role_id
             $sql = "INSERT INTO users (username, password, role_id) VALUES (?, ?, ?)";
             $stmt = $conn->prepare($sql);
             $hashedPassword = hash('sha256', $pass);
-            $role_id = 2;
             $stmt->execute([$usr, $hashedPassword, $role_id]);
 
-            // Return success response
             $response->getBody()->write(json_encode(["status" => "success", "data" => null]));
         }
     } catch (PDOException $e) {
-        // Return error message on exception
         $response->getBody()->write(json_encode([
             "status" => "fail",
             "data" => ["title" => $e->getMessage()]
         ]));
     }
 
-    return $response;
+    return $response->withHeader('Content-Type', 'application/json');
 });
 
 // Admin Registration
